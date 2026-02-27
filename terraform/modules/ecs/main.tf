@@ -15,6 +15,7 @@ resource "aws_ecs_task_definition" "this" {
   cpu                      = "512"
   memory                   = "1024"
 
+  # Using EXISTING IAM role (no creation)
   execution_role_arn = "arn:aws:iam::811738710312:role/ecs_fargate_taskRole"
 
   container_definitions = jsonencode([{
@@ -44,23 +45,17 @@ resource "aws_ecs_task_definition" "this" {
       { name = "JWT_SECRET",          value = var.jwt_secret }
     ]
 
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = var.log_group_name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
-      }
-    }
+    # Removed logConfiguration to avoid CloudWatch permission errors
   }])
 }
 
 #########################
-# ECS Service (CodeDeploy safe)
+# ECS Service (CodeDeploy Safe)
 #########################
 resource "aws_ecs_service" "this" {
   name            = "${var.project_name}-service"
   cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.this.arn
   desired_count   = 2
   launch_type     = "FARGATE"
 
@@ -85,8 +80,4 @@ resource "aws_ecs_service" "this" {
       task_definition
     ]
   }
-
-  depends_on = [
-    var.blue_tg_arn
-  ]
 }
