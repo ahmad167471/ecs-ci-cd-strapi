@@ -1,0 +1,72 @@
+name: CD - ECS Blue Green Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI - Build & Push to ECR"]
+    types:
+      - completed
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ahmad-strapi-bluegreen
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY_ID }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Latest Task Definition ARN
+        id: taskdef
+        run: |
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition ahmad-bluegreen-task \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "TASK_DEF=$TASK_DEF" >> $GITHUB_ENV
+
+      - name: Generate AppSpec File
+        run: |
+          cat <<EOF > appspec.json
+          {
+            "version": 1,
+            "Resources": [
+              {
+                "TargetService": {
+                  "Type": "AWS::ECS::Service",
+                  "Properties": {
+                    "TaskDefinition": "${TASK_DEF}",
+                    "LoadBalancerInfo": {
+                      "ContainerName": "ahmad-strapi",
+                      "ContainerPort": 1337
+                    }
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload AppSpec to S3
+        run: |
+          aws s3 cp appspec.json s3://ahmad-task-11/appspec.json
+
+      - name: Trigger CodeDeploy Deployment
+        run: |
+          aws deploy create-deployment \
+            --application-name ahmad-strapi-codedeploy-app \
+            --deployment-group-name strapi-deployment-group \
+            --deployment-config-name CodeDeployDefault.ECSCanary10Percent5Minutes \
+            --revision 'revisionType=S3,s3Location={bucket=ahmad-task-11,key=appspec.json,bundleType=JSON}' \
+            --description "Blue/Green Deployment from GitHub Actions"
