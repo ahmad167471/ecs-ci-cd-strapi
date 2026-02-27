@@ -6,14 +6,6 @@ resource "aws_ecs_cluster" "this" {
 }
 
 #########################
-# CloudWatch Log Group
-#########################
-resource "aws_cloudwatch_log_group" "ecs" {
-  name              = var.log_group_name
-  retention_in_days = 14
-}
-
-#########################
 # ECS Task Definition
 #########################
 resource "aws_ecs_task_definition" "this" {
@@ -97,28 +89,6 @@ resource "aws_ecs_service" "this" {
   depends_on = [
     var.blue_tg_arn
   ]
-}
-
-#########################
-# ECS Execution Role CloudWatch Policy
-#########################
-resource "aws_iam_policy" "ecs_logs_policy" {
-  name        = "${var.project_name}-ecs-logs"
-  description = "Allow ECS tasks to push logs to CloudWatch"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_logs_attach" {
