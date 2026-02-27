@@ -90,8 +90,3 @@ resource "aws_ecs_service" "this" {
     var.blue_tg_arn
   ]
 }
-
-resource "aws_iam_role_policy_attachment" "ecs_logs_attach" {
-  role       = "ecs_fargate_taskrole"
-  policy_arn = aws_iam_policy.ecs_logs_policy.arn
-}
